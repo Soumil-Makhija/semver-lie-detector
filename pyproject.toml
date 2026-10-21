@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "semver-lie-detector"
+version = "0.1.0"
+description = "Static Python public API compatibility evidence for suspicious minor and patch releases"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+
+[project.scripts]
+semver-lie = "semver_lie_detector.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["semver_lie_detector*"]
