@@ -19,12 +19,31 @@ def version_policy(old, new):
     return kind, a[0] >= 1 and kind in ('minor', 'patch')
 
 
+def bind_call(signature, args, kwargs):
+    # inspect.bind on older Python versions rejects a positional-only name in
+    # **kwargs even when that positional parameter has a default. Rename the
+    # positional-only slots for binding; their names are not part of the API.
+    reserved = set(signature.parameters) | set(kwargs)
+    params = []
+    for index, param in enumerate(signature.parameters.values()):
+        if param.kind == P.POSITIONAL_ONLY:
+            name = f'__slot_{index}'
+            while name in reserved:
+                name += '_'
+            reserved.add(name)
+            param = param.replace(name=name)
+        params.append(param)
+    return signature.replace(parameters=params).bind(*args, **kwargs)
+
+
 def rejected_call(old, new):
     """Enumerate the finite binding equivalence classes of two Python signatures.
 
     Keyword subsets are exhaustive, capped at 12 distinct names; larger APIs
     yield a coverage warning. Values are irrelevant to argument binding.
     """
+    if old == new:
+        return None, None
     oldp, newp = list(old.parameters.values()), list(new.parameters.values())
     names = {p.name for p in oldp if p.kind in (P.POSITIONAL_OR_KEYWORD, P.KEYWORD_ONLY)}
     if any(p.kind == P.VAR_KEYWORD for p in oldp):
@@ -47,11 +66,11 @@ def rejected_call(old, new):
             for subset in itertools.combinations(names, size):
                 kwargs = {name: 'value' for name in subset}
                 try:
-                    old.bind(*args, **kwargs)
+                    bind_call(old, args, kwargs)
                 except TypeError:
                     continue
                 try:
-                    new.bind(*args, **kwargs)
+                    bind_call(new, args, kwargs)
                 except TypeError as exc:
                     return {'args': args, 'kwargs': kwargs, 'reason': str(exc)}, None
     return None, None

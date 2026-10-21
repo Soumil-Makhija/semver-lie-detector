@@ -50,13 +50,13 @@ def signature(node, drop_first=False):
 
 def scan(root: Path) -> Surface:
     root = root.resolve()
-    if not root.is_dir():
+    if not root.is_dir() and not (root.is_file() and root.suffix == '.py'):
         raise ValueError(f"Not a source directory: {root}")
     # A package directory itself, or a parent containing packages/modules.
-    base = root.parent if (root / '__init__.py').exists() else root
+    base = root.parent if root.is_file() or (root / '__init__.py').exists() else root
     result = Surface()
     modules = {}
-    for path in sorted(root.rglob('*.py')):
+    for path in ([root] if root.is_file() else sorted(root.rglob('*.py'))):
         if any(p.startswith('.') or p == '__pycache__' for p in path.relative_to(root).parts):
             continue
         parts = list(path.relative_to(base).with_suffix('').parts)
@@ -171,7 +171,8 @@ def scan(root: Path) -> Surface:
             for name in sorted(names):
                 if f'{module}.{name}' not in result.symbols:
                     result.warnings.append(f'{module}.{name}: declared export not resolved')
+    private_modules = [name for name in modules if any(part.startswith('_') for part in name.split('.'))]
     result.symbols = {key: value for key, value in result.symbols.items()
-                      if all(not part.startswith('_') or part in ('__init__', '__call__') for part in key.split('.'))}
+                      if not any(key == name or key.startswith(name + '.') for name in private_modules)}
     result.warnings = sorted(set(result.warnings))
     return result

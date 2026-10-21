@@ -48,6 +48,14 @@ class CoreTests(unittest.TestCase):
                 report = self.diff(f'def f({a}): pass', f'def f({b}): pass')
                 self.assertEqual(report['suspected_violation'], breaking)
 
+    def test_posonly_keyword_matches_actual_runtime(self):
+        import inspect
+        from semver_lie_detector.compare import bind_call
+        def target(x=1, /, **kw):
+            return x, kw
+        self.assertEqual(target(x=2), (1, {'x': 2}))
+        self.assertEqual(bind_call(inspect.signature(target), [], {'x': 2}).arguments['kw'], {'x': 2})
+
     def test_order_default_async_and_review(self):
         self.assertTrue(self.diff('def f(x,y): pass', 'def f(y,x): pass')['suspected_violation'])
         report = self.diff('def f(x=1): pass', 'def f(x=2): pass')
@@ -93,7 +101,7 @@ class CoreTests(unittest.TestCase):
 
     def test_complex_signature_is_partial(self):
         args = ','.join(f'a{i}=1' for i in range(13))
-        r = self.diff(f'def f({args}): pass', f'def f({args}): pass')
+        r = self.diff(f'def f({args}): pass', f'def f({args}, extra=1): pass')
         self.assertEqual(r['analysis'], 'partial')
 
     def test_version_policy(self):
